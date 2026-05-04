@@ -1,10 +1,12 @@
+```react
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   CheckCircle2, Circle, Clock, Plus, Trash2, Edit2, 
   Paperclip, FolderOpen, AlertCircle, X, 
   Eye, EyeOff, GripVertical, GripHorizontal, Tags, Send, AlignLeft, Calendar, Filter, Check, History, Undo2,
   Folder, FileText, ChevronRight, ChevronDown, ChevronUp, ArrowLeft,
-  Mic, MicOff, Image as ImageIcon, Palette, Eraser, PenTool, Move, WifiOff, Loader2, Cloud, ExternalLink, Link as LinkIcon, LogOut, ShieldAlert
+  Mic, MicOff, Image as ImageIcon, Palette, Eraser, PenTool, Move, WifiOff, Loader2, Cloud, ExternalLink, Link as LinkIcon, LogOut, ShieldAlert, Settings,
+  Bold, Italic, Underline, List, ListOrdered, Download
 } from 'lucide-react';
 
 // ==========================================
@@ -99,25 +101,51 @@ function useGooglePicker(clientId, apiKey) {
     return () => { document.body.removeChild(gapiScript); document.body.removeChild(gisScript); }
   }, [clientId, apiKey]);
 
-  const openPicker = (onSuccess, onError) => {
+  const requestTokenAndShowPicker = (buildPickerFn, onError) => {
     if (!isReady) { onError("Google Drive API 尚未準備好，請確認金鑰設定並稍候。"); return; }
     tokenClientRef.current.callback = async (response) => {
       if (response.error) { onError(response.error); return; }
-      const uploadView = new window.google.picker.DocsUploadView();
-      const docsView = new window.google.picker.DocsView().setIncludeFolders(true);
-      const picker = new window.google.picker.PickerBuilder()
-        .addView(uploadView)
-        .addView(docsView)
-        .setOAuthToken(response.access_token)
-        .setDeveloperKey(apiKey)
-        .setCallback((data) => { if (data.action === window.google.picker.Action.PICKED) onSuccess(data.docs[0]); })
-        .build();
-      picker.setVisible(true);
+      buildPickerFn(response.access_token);
     };
     tokenClientRef.current.requestAccessToken({ prompt: '' });
   };
 
-  return { isReady, openPicker };
+  const openFilePicker = (onSuccess, onError, parentId) => {
+    requestTokenAndShowPicker((token) => {
+      const uploadView = new window.google.picker.DocsUploadView();
+      if (parentId) uploadView.setParent(parentId);
+
+      const docsView = new window.google.picker.DocsView().setIncludeFolders(true);
+      const picker = new window.google.picker.PickerBuilder()
+        .addView(uploadView)
+        .addView(docsView)
+        .setOAuthToken(token)
+        .setDeveloperKey(apiKey)
+        .setCallback((data) => { if (data.action === window.google.picker.Action.PICKED) onSuccess(data.docs[0]); })
+        .build();
+      picker.setVisible(true);
+    }, onError);
+  };
+
+  const openFolderPicker = (onSuccess, onError) => {
+    requestTokenAndShowPicker((token) => {
+      const docsView = new window.google.picker.DocsView()
+        .setIncludeFolders(true)
+        .setSelectFolderEnabled(true)
+        .setMimeTypes('application/vnd.google-apps.folder');
+
+      const picker = new window.google.picker.PickerBuilder()
+        .setTitle("請選擇您的預設上傳位置")
+        .addView(docsView)
+        .setOAuthToken(token)
+        .setDeveloperKey(apiKey)
+        .setCallback((data) => { if (data.action === window.google.picker.Action.PICKED) onSuccess(data.docs[0]); })
+        .build();
+      picker.setVisible(true);
+    }, onError);
+  };
+
+  return { isReady, openFilePicker, openFolderPicker };
 }
 
 // ==========================================
@@ -156,7 +184,6 @@ export default function App() {
     return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); };
   }, []);
 
-  // 🔐 監聽認證狀態 + Firestore 白名單驗證
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
@@ -334,21 +361,6 @@ export default function App() {
             <p className="text-xs text-gray-400 flex items-center gap-1"><ShieldAlert size={12}/> 僅限資料庫授權名單之帳戶登入</p>
           </div>
         </div>
-
-        {/* 🌐 沙盒網域顯示器工具 */}
-        <div className="bg-gray-800 text-gray-200 text-xs rounded-xl p-4 max-w-md w-full border border-gray-700 shadow-lg">
-           <p className="font-bold text-white mb-2">🛠️ 開發者設定工具</p>
-           <p className="mb-1 opacity-80">請將下方網址複製，並加入至以下兩個地方：</p>
-           <ol className="list-decimal pl-4 mb-3 opacity-80 space-y-0.5">
-             <li>Firebase -&gt; Authentication -&gt; Settings -&gt; Authorized domains</li>
-             <li>Google Cloud Console -&gt; 憑證 -&gt; OAuth 用戶端 ID -&gt; 已授權的 JavaScript 來源</li>
-           </ol>
-           <div className="bg-black p-2 rounded flex justify-between items-center">
-             <code className="text-green-400 select-all font-mono">{window.location.origin}</code>
-           </div>
-        </div>
-
-        {toastMsg && <Toast message={toastMsg.message} type={toastMsg.type} onClose={() => setToastMsg(null)} />}
       </div>
     );
   }
@@ -559,7 +571,7 @@ export default function App() {
 }
 
 // ==========================================
-// 🚀 富文本編輯器 (真實 Google Picker 實裝)
+// 🚀 富文本編輯器 (加入匯出功能 & 附件重新命名)
 // ==========================================
 function RichTextNoteEditorModal({ note, folders, buildFolderOptions, onClose, user, appId, db, showToast, reqConfirm }) {
   const [title, setTitle] = useState(note.title || '');
@@ -569,8 +581,16 @@ function RichTextNoteEditorModal({ note, folders, buildFolderOptions, onClose, u
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false); 
   
-  const { isReady: isPickerReady, openPicker } = useGooglePicker(GOOGLE_CLIENT_ID, GOOGLE_API_KEY);
+  // 🔥 控制附件重新命名的 State
+  const [editingAttId, setEditingAttId] = useState(null);
+  const [editingAttName, setEditingAttName] = useState('');
+
+  const { isReady: isPickerReady, openFilePicker, openFolderPicker } = useGooglePicker(GOOGLE_CLIENT_ID, GOOGLE_API_KEY);
   const [showLargeFilePrompt, setShowLargeFilePrompt] = useState(false);
+  const [driveUploadFolder, setDriveUploadFolder] = useState(() => {
+    const saved = localStorage.getItem('driveUploadFolder');
+    return saved ? JSON.parse(saved) : null;
+  });
 
   const [canvases, setCanvases] = useState(() => {
     if (note.canvases && note.canvases.length > 0) return note.canvases;
@@ -652,7 +672,6 @@ function RichTextNoteEditorModal({ note, folders, buildFolderOptions, onClose, u
   const handleFileUpload = (e) => {
     const file = e.target.files[0]; if (!file) return;
     if (file.size > 800 * 1024) { setShowLargeFilePrompt(true); e.target.value = ''; return; }
-    
     const reader = new FileReader();
     reader.onload = (ev) => { 
       const b64 = ev.target.result;
@@ -665,7 +684,7 @@ function RichTextNoteEditorModal({ note, folders, buildFolderOptions, onClose, u
 
   const handleOpenGooglePicker = () => {
     setShowLargeFilePrompt(false);
-    openPicker(
+    openFilePicker(
       (googleDoc) => {
         setAttachments(prev => [...prev, { 
           id: crypto.randomUUID(), 
@@ -676,11 +695,35 @@ function RichTextNoteEditorModal({ note, folders, buildFolderOptions, onClose, u
         }]);
         showToast("已成功從 Google Drive 載入附檔！");
       },
-      (errorMsg) => { showToast("開啟 Google Drive 失敗，請確認已設定金鑰", "error"); }
+      (errorMsg) => { showToast("開啟 Google Drive 失敗，請確認已設定金鑰", "error"); },
+      driveUploadFolder?.id
+    );
+  };
+
+  const handleSetDriveFolder = () => {
+    openFolderPicker(
+      (folder) => {
+        const folderData = { id: folder.id, name: folder.name };
+        setDriveUploadFolder(folderData);
+        localStorage.setItem('driveUploadFolder', JSON.stringify(folderData)); 
+        showToast(`太棒了！未來將預設上傳至：📁 ${folder.name}`);
+      },
+      (errorMsg) => { showToast("開啟 Google Drive 失敗", "error"); }
     );
   };
 
   const removeAttachment = (id) => reqConfirm("移除附件", "確定要移除此檔案或連結嗎？", () => setAttachments(prev => prev.filter(a => a.id !== id)));
+
+  // 🔥 處理附件重新命名
+  const startEditAttachment = (att) => {
+    setEditingAttId(att.id);
+    setEditingAttName(att.name);
+  };
+  const saveAttachmentName = () => {
+    if(editingAttName.trim() === '') return showToast("名稱不能為空", "error");
+    setAttachments(prev => prev.map(a => a.id === editingAttId ? { ...a, name: editingAttName.trim() } : a));
+    setEditingAttId(null);
+  };
 
   const addCanvas = () => { 
     if(!checkStorageLimit(50000)) return; 
@@ -690,12 +733,79 @@ function RichTextNoteEditorModal({ note, folders, buildFolderOptions, onClose, u
   const updateCanvasData = (id, data) => setCanvases(prev => prev.map(c => c.id === id ? { ...c, data } : c));
   const removeCanvas = (id) => reqConfirm("刪除畫板", "確定要移除這塊畫板嗎？畫作將無法復原。", () => setCanvases(prev => prev.filter(c => c.id !== id)));
 
+  const executeFormat = (command, value = null) => {
+    document.execCommand(command, false, value);
+    if (editorRef.current) { editorRef.current.focus(); setContent(editorRef.current.innerHTML); }
+  };
+
+  const handleFormatClick = (e, command, value = null) => {
+    e.preventDefault(); executeFormat(command, value);
+  };
+
+  // 🔥 匯出筆記為 HTML 檔案功能
+  const handleExportNote = () => {
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html lang="zh-TW">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${title || '未命名筆記'}</title>
+        <style>
+          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 40px 20px; background-color: #f9fafb; }
+          .paper { background: #fff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+          h1 { font-size: 2.5rem; color: #111; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; }
+          img { max-width: 100%; height: auto; border-radius: 8px; margin: 20px 0; border: 1px solid #e5e7eb; }
+          .content { margin-bottom: 40px; font-size: 1.1rem; }
+          .canvas-container { margin: 20px 0; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; background: #fff; text-align: center; }
+          .canvas-container h4 { margin: 0; padding: 10px; background: #f3f4f6; color: #666; font-size: 0.9rem; border-bottom: 1px solid #e5e7eb; }
+          .attachments { margin-top: 40px; padding-top: 20px; border-top: 2px dashed #e5e7eb; }
+          .attachment-item { display: inline-block; background: #f3f4f6; padding: 10px 15px; border-radius: 8px; margin: 5px 10px 5px 0; text-decoration: none; color: #4f46e5; font-weight: bold; font-size: 0.9em; border: 1px solid #e5e7eb; }
+          .attachment-item:hover { background: #e0e7ff; }
+        </style>
+      </head>
+      <body>
+        <div class="paper">
+          <h1>${title || '未命名筆記'}</h1>
+          <div class="content">${content}</div>
+          
+          ${canvases.length > 0 ? canvases.map((c, i) => `<div class="canvas-container"><h4>🖍️ 手寫畫布區塊 ${i+1}</h4><img src="${c.data}" alt="Canvas ${i+1}" /></div>`).join('') : ''}
+          
+          ${attachments.length > 0 ? `
+            <div class="attachments">
+              <h3>📎 附件連結</h3>
+              ${attachments.map(a => `<a class="attachment-item" href="${a.type === 'drive-picker' ? a.url : a.data}" ${a.type === 'drive-picker' ? 'target="_blank"' : `download="${a.name}"`}>${a.name}</a>`).join('')}
+            </div>
+          ` : ''}
+        </div>
+      </body>
+      </html>
+    `;
+    
+    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = (title || '未命名筆記') + '.html';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showToast("🎉 筆記已成功匯出至您的電腦！");
+  };
+
   return (
     <div className="fixed inset-0 bg-gray-50 z-[60] flex flex-col animate-scale-up overflow-hidden">
       <header className="px-4 py-3 border-b border-gray-200 flex justify-between items-center bg-white shadow-sm flex-shrink-0">
         <div className="flex items-center gap-4">
           <button onClick={onClose} className="p-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors"><ArrowLeft size={20}/></button>
-          <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3">
+          
+          {/* 🔥 匯出按鈕 */}
+          <button onClick={handleExportNote} className="p-2 bg-indigo-50 hover:bg-indigo-100 rounded-lg text-indigo-600 transition-colors flex items-center gap-1.5 font-bold text-sm shadow-sm" title="將筆記下載至電腦">
+            <Download size={18}/> <span className="hidden sm:inline">匯出筆記</span>
+          </button>
+
+          <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3 ml-2">
             <span className={"text-xs font-bold " + (!navigator.onLine ? 'text-red-500' : isSaving ? 'text-indigo-500' : 'text-green-500')}>{!navigator.onLine ? '⚡ 離線暫存中' : isSaving ? '同步雲端中...' : '已儲存'}</span>
             <select value={folderId || 'root'} onChange={(e) => setFolderId(e.target.value === 'root' ? null : e.target.value)} className="text-xs bg-gray-100 text-gray-600 border-none rounded py-1 px-2 font-medium outline-none cursor-pointer hidden md:block"><option value="root">📁 根目錄</option>{buildFolderOptions(null).map(opt => <option key={opt.id} value={opt.id}>📁 {opt.name}</option>)}</select>
           </div>
@@ -709,9 +819,25 @@ function RichTextNoteEditorModal({ note, folders, buildFolderOptions, onClose, u
           <label className="flex-shrink-0 p-2 rounded-lg text-gray-600 hover:bg-gray-200 cursor-pointer flex items-center gap-1.5 transition-all font-bold text-sm"><ImageIcon size={18}/> <span className="hidden md:inline">圖片</span><input type="file" accept="image/*" onChange={handleInlineImage} className="hidden" disabled={isUploading} /></label>
           <label className="flex-shrink-0 p-2 rounded-lg text-gray-600 hover:bg-gray-200 cursor-pointer flex items-center gap-1.5 transition-all font-bold text-sm"><Paperclip size={18}/> <span className="hidden md:inline">本地附檔</span><input type="file" onChange={handleFileUpload} className="hidden" disabled={isUploading} /></label>
           
-          <button onClick={handleOpenGooglePicker} disabled={isUploading || !isPickerReady} className="flex-shrink-0 p-2 rounded-lg font-bold text-sm flex items-center gap-1.5 transition-all text-blue-600 hover:bg-blue-100 disabled:opacity-50" title={!isPickerReady ? "金鑰未設定或載入中" : ""}>
-            <Cloud size={18}/> <span className="hidden md:inline">雲端檔案</span>
-          </button>
+          <div className="flex items-center bg-blue-50 rounded-lg text-blue-600 border border-blue-100">
+            <button 
+              onClick={handleOpenGooglePicker} 
+              disabled={isUploading || !isPickerReady} 
+              className="flex-shrink-0 p-2 font-bold text-sm flex items-center gap-1.5 transition-all hover:bg-blue-100 rounded-l-lg disabled:opacity-50" 
+              title={!isPickerReady ? "金鑰未設定或載入中" : (driveUploadFolder ? "將上傳至: " + driveUploadFolder.name : "將上傳至 Drive 根目錄")}
+            >
+              <Cloud size={18}/> <span className="hidden md:inline">雲端檔案</span>
+            </button>
+            <div className="w-px h-5 bg-blue-200"></div>
+            <button 
+              onClick={handleSetDriveFolder} 
+              disabled={isUploading || !isPickerReady} 
+              className="p-2 hover:bg-blue-100 rounded-r-lg transition-colors disabled:opacity-50 flex items-center justify-center" 
+              title="設定 Google Drive 預設上傳資料夾"
+            >
+              <Settings size={16}/>
+            </button>
+          </div>
           
           <div className="w-px h-6 bg-gray-300"></div>
           <button onClick={addCanvas} disabled={isUploading} className="flex-shrink-0 p-2 rounded-lg font-bold text-sm flex items-center gap-1.5 transition-all text-indigo-600 hover:bg-indigo-100 disabled:opacity-50"><Palette size={18}/> <span className="hidden md:inline">加畫板</span></button>
@@ -723,7 +849,42 @@ function RichTextNoteEditorModal({ note, folders, buildFolderOptions, onClose, u
           <input value={title} onChange={(e)=>setTitle(e.target.value)} placeholder="為這篇筆記下個標題..." className="text-3xl md:text-5xl font-black text-gray-900 border-none outline-none placeholder-gray-300 bg-transparent px-4" />
           
           <div className="relative px-4 border-l-2 border-transparent focus-within:border-indigo-200 transition-colors">
-            <div ref={editorRef} contentEditable="true" onInput={(e) => setContent(e.currentTarget.innerHTML)} className="rich-editor min-h-[150px] w-full text-lg leading-relaxed text-gray-800 outline-none" placeholder="開始輸入文字，或者插入圖片..." style={{ minHeight: '150px' }} />
+            
+            <div className="flex flex-wrap items-center gap-1 bg-white border border-gray-200 shadow-sm rounded-lg p-1.5 mb-3 sticky top-0 z-10 w-max max-w-full overflow-x-auto hide-scrollbar">
+              <select 
+                onChange={(e) => { executeFormat('fontSize', e.target.value); e.target.selectedIndex = 0; }} 
+                className="bg-transparent text-sm font-medium p-1.5 outline-none hover:bg-gray-100 rounded text-gray-700 cursor-pointer"
+              >
+                <option value="" disabled selected>文字大小</option>
+                <option value="1">極小 (x-small)</option>
+                <option value="2">小 (small)</option>
+                <option value="3">正常 (normal)</option>
+                <option value="4">中等 (large)</option>
+                <option value="5">大 (x-large)</option>
+                <option value="6">極大 (xx-large)</option>
+              </select>
+              
+              <div className="w-px h-5 bg-gray-200 mx-1"></div>
+              
+              <button onMouseDown={(e) => handleFormatClick(e, 'bold')} className="p-1.5 hover:bg-indigo-50 hover:text-indigo-600 rounded text-gray-600 transition-colors" title="粗體"><Bold size={16}/></button>
+              <button onMouseDown={(e) => handleFormatClick(e, 'italic')} className="p-1.5 hover:bg-indigo-50 hover:text-indigo-600 rounded text-gray-600 transition-colors" title="斜體"><Italic size={16}/></button>
+              <button onMouseDown={(e) => handleFormatClick(e, 'underline')} className="p-1.5 hover:bg-indigo-50 hover:text-indigo-600 rounded text-gray-600 transition-colors" title="底線"><Underline size={16}/></button>
+              
+              <div className="w-px h-5 bg-gray-200 mx-1"></div>
+              
+              <button onMouseDown={(e) => handleFormatClick(e, 'insertUnorderedList')} className="p-1.5 hover:bg-indigo-50 hover:text-indigo-600 rounded text-gray-600 transition-colors" title="項目符號"><List size={16}/></button>
+              <button onMouseDown={(e) => handleFormatClick(e, 'insertOrderedList')} className="p-1.5 hover:bg-indigo-50 hover:text-indigo-600 rounded text-gray-600 transition-colors" title="數字列表"><ListOrdered size={16}/></button>
+            </div>
+
+            <div 
+              ref={editorRef} 
+              contentEditable="true" 
+              onInput={(e) => setContent(e.currentTarget.innerHTML)} 
+              className="rich-editor min-h-[150px] w-full text-lg leading-relaxed text-gray-800 outline-none" 
+              placeholder="開始輸入文字，或者使用上方工具列排版..." 
+              style={{ minHeight: '150px' }} 
+            />
+
             {isListening && <div className="fixed bottom-10 right-10 flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-lg border border-red-100 z-50"><div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-ping"></div><span className="text-sm font-bold text-red-500">正在聆聽並輸入...</span></div>}
           </div>
 
@@ -733,22 +894,40 @@ function RichTextNoteEditorModal({ note, folders, buildFolderOptions, onClose, u
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {attachments.map(file => (
                   <div key={file.id} className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-xl hover:border-indigo-300 transition-colors">
-                    <div className="flex items-center gap-3 min-w-0">
-                      
-                      <div className={"w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 " + (file.type === 'drive-picker' ? 'bg-transparent' : 'bg-indigo-50 text-indigo-500')}>
-                        {file.type === 'drive-picker' ? <img src={file.iconUrl} alt="drive icon" className="w-6 h-6" /> : <FileText size={20}/>}
+                    
+                    {/* 🔥 附件重新命名編輯區塊 */}
+                    {editingAttId === file.id ? (
+                      <div className="flex-1 min-w-0 flex items-center gap-2 mr-2">
+                        <input
+                          autoFocus
+                          value={editingAttName}
+                          onChange={(e) => setEditingAttName(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && saveAttachmentName()}
+                          className="flex-1 px-3 py-1.5 border border-indigo-300 rounded outline-none text-sm font-bold text-indigo-700 bg-white focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <button onClick={saveAttachmentName} className="p-1.5 bg-green-100 text-green-700 hover:bg-green-200 rounded shadow-sm"><Check size={16}/></button>
+                        <button onClick={() => setEditingAttId(null)} className="p-1.5 bg-gray-200 text-gray-600 hover:bg-gray-300 rounded shadow-sm"><X size={16}/></button>
                       </div>
-                      
-                      <div className="min-w-0 flex flex-col">
-                        <span className="text-sm font-bold text-gray-700 truncate">{file.name}</span>
-                        {file.type === 'drive-picker' ? (
-                          <a href={file.url} target="_blank" rel="noreferrer" className="text-[10px] text-blue-500 hover:text-blue-700 text-left underline font-bold mt-0.5 flex items-center gap-1">在 Google Drive 檢視 <ExternalLink size={10}/></a>
-                        ) : (
-                          <a href={file.data} download={file.name} className="text-[10px] text-indigo-500 hover:text-indigo-700 text-left underline font-bold mt-0.5">下載本地附件</a>
-                        )}
+                    ) : (
+                      <div className="flex items-center gap-3 min-w-0 group/att">
+                        <div className={"w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 " + (file.type === 'drive-picker' ? 'bg-transparent' : 'bg-indigo-50 text-indigo-500')}>
+                          {file.type === 'drive-picker' ? <img src={file.iconUrl} alt="drive icon" className="w-6 h-6" /> : <FileText size={20}/>}
+                        </div>
+                        
+                        <div className="min-w-0 flex flex-col">
+                          <div className="flex items-center gap-1.5">
+                             <span className="text-sm font-bold text-gray-700 truncate">{file.name}</span>
+                             <button onClick={() => startEditAttachment(file)} className="opacity-0 group-hover/att:opacity-100 p-1 text-gray-400 hover:text-indigo-600 transition-opacity bg-white rounded shadow-sm border border-gray-100"><Edit2 size={12}/></button>
+                          </div>
+                          {file.type === 'drive-picker' ? (
+                            <a href={file.url} target="_blank" rel="noreferrer" className="text-[10px] text-blue-500 hover:text-blue-700 text-left underline font-bold mt-0.5 flex items-center gap-1 w-max">在 Google Drive 檢視 <ExternalLink size={10}/></a>
+                          ) : (
+                            <a href={file.data} download={file.name} className="text-[10px] text-indigo-500 hover:text-indigo-700 text-left underline font-bold mt-0.5 w-max">下載本地附件</a>
+                          )}
+                        </div>
                       </div>
+                    )}
 
-                    </div>
                     <button onClick={() => removeAttachment(file.id)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
                   </div>
                 ))}
@@ -765,7 +944,6 @@ function RichTextNoteEditorModal({ note, folders, buildFolderOptions, onClose, u
         </div>
       </main>
 
-      {/* 🔥 擋下過大檔案的引導 Modal */}
       {showLargeFilePrompt && (
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-scale-up border border-gray-100">
@@ -844,7 +1022,6 @@ function FolderTree({ folders, parentId, currentFolderId, onSelect, onDropNote, 
   );
 }
 
-// 🔥 修改 TodoCard：移除分類標籤、直接顯示說明
 function TodoCard({ todo, categories, onToggle, onClick, onDelete, onDragStart, onDragEnd }) {
   const [isExpanded, setIsExpanded] = useState(false);
   
@@ -860,7 +1037,6 @@ function TodoCard({ todo, categories, onToggle, onClick, onDelete, onDragStart, 
         <div className="flex-1 min-w-0">
           <h3 className="text-sm md:text-base font-bold text-gray-800 leading-tight">{todo.title}</h3>
           
-          {/* 🔥 直接顯示任務說明，並限制最多 3 行 */}
           {todo.description && (
             <p className="text-xs text-gray-500 mt-1.5 leading-relaxed line-clamp-3">
               {todo.description}
@@ -868,7 +1044,6 @@ function TodoCard({ todo, categories, onToggle, onClick, onDelete, onDragStart, 
           )}
 
           <div className="flex flex-wrap gap-2 mt-2 items-center">
-            {/* 移除了分類標籤 */}
             {(todo.progress || []).length > 0 && (
               <button onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }} className="text-[10px] text-gray-500 hover:text-indigo-600 flex items-center gap-1 bg-gray-50 px-2 py-0.5 rounded border transition-colors shadow-sm">
                 <Clock size={10}/> {todo.progress.length} 筆進度 {isExpanded ? <ChevronUp size={12}/> : <ChevronDown size={12}/>}
@@ -914,7 +1089,6 @@ function TodoDetailModal({ todo, categories, user, appId, db, onClose, showToast
   const [editId, setEditId] = useState(null); 
   const [editText, setEditText] = useState('');
   
-  // 編輯狀態
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState(todo.title);
   const [isEditingDesc, setIsEditingDesc] = useState(false);
@@ -929,11 +1103,9 @@ function TodoDetailModal({ todo, categories, user, appId, db, onClose, showToast
     <div className="fixed inset-0 bg-gray-900/40 flex justify-end z-50">
       <div className="bg-white w-full md:w-[450px] h-full flex flex-col shadow-2xl animate-slide-in-right">
         
-        {/* 標頭區 */}
         <div className="p-5 border-b bg-gray-50">
           <div className="flex justify-between items-start mb-4">
             
-            {/* 標題編輯區 */}
             {isEditingTitle ? (
               <div className="flex-1 mr-3 flex flex-col gap-2">
                 <input autoFocus value={editTitle} onChange={e=>setEditTitle(e.target.value)} className="w-full text-lg font-bold border border-gray-300 rounded px-3 py-1.5 outline-none focus:ring-2 focus:ring-indigo-500" />
@@ -959,10 +1131,8 @@ function TodoDetailModal({ todo, categories, user, appId, db, onClose, showToast
           </div>
         </div>
 
-        {/* 內容區 */}
         <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
           
-          {/* 🔥 獨立的任務說明區塊 */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2 group">
               <h3 className="text-sm font-bold text-gray-400 flex items-center gap-2"><AlignLeft size={16}/> 任務說明</h3>
@@ -1015,7 +1185,6 @@ function TodoDetailModal({ todo, categories, user, appId, db, onClose, showToast
           </div>
         </div>
         
-        {/* 發布進度輸入框 */}
         {todo.status!=='done' && (
           <div className="p-4 border-t flex gap-2">
             <textarea value={nt} onChange={e=>setNt(e.target.value)} className="flex-1 border rounded-xl p-3 text-sm h-14 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="發佈新進度..."/>
@@ -1054,7 +1223,20 @@ style.textContent = `
     border: 1px solid #e5e7eb; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   }
   
-  /* 🔥 新增：限制文字行數並顯示省略號 */
+  .rich-editor ul {
+    list-style-type: disc;
+    padding-left: 2rem;
+    margin: 0.5rem 0;
+  }
+  .rich-editor ol {
+    list-style-type: decimal;
+    padding-left: 2rem;
+    margin: 0.5rem 0;
+  }
+  .rich-editor li {
+    margin-bottom: 0.25rem;
+  }
+  
   .line-clamp-3 {
     display: -webkit-box;
     -webkit-line-clamp: 3;
@@ -1063,3 +1245,6 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
+
+
+```
