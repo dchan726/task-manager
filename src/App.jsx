@@ -1,3 +1,4 @@
+```react
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   CheckCircle2, Circle, Clock, Plus, Trash2, Edit2, 
@@ -188,13 +189,11 @@ export default function App() {
     return () => unsubscribeAuth();
   }, []);
 
-  // 🚀 執行 Google 登入
   const handleGoogleLogin = async () => {
     setIsLoggingIn(true);
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
-      // 成功彈出並登入後，後續交由 onAuthStateChanged 進行白名單檢查
     } catch (error) {
       if (error.code !== 'auth/popup-closed-by-user') {
         showToast(`登入失敗: ${error.message}`, "error");
@@ -300,10 +299,11 @@ export default function App() {
     try { await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'todos', todoId), { priority: targetPriority, position: newPos, updatedAt: Date.now() }); } catch (err) {}
   };
 
+  // 🔥 解決 Tailwind 顏色變數被 purge 的問題，直接使用完整的 Class 字串
   const cols = [
-    { id: 'urgent', title: '緊急任務', color: 'red', items: activeTodos.filter(t => t.priority === 'urgent') },
-    { id: 'semi', title: '次緊急任務', color: 'yellow', items: activeTodos.filter(t => t.priority === 'semi') },
-    { id: 'normal', title: '非緊急任務', color: 'green', items: activeTodos.filter(t => t.priority === 'normal') },
+    { id: 'urgent', title: '緊急任務', textCls: 'text-red-700', dotCls: 'bg-red-500', items: activeTodos.filter(t => t.priority === 'urgent') },
+    { id: 'semi', title: '次緊急任務', textCls: 'text-yellow-700', dotCls: 'bg-yellow-500', items: activeTodos.filter(t => t.priority === 'semi') },
+    { id: 'normal', title: '非緊急任務', textCls: 'text-green-700', dotCls: 'bg-green-500', items: activeTodos.filter(t => t.priority === 'normal') },
   ];
 
   if (isLoading) return (
@@ -423,7 +423,12 @@ export default function App() {
               <div className={`grid grid-cols-1 ${Object.values(colsVisible).filter(Boolean).length === 3 ? 'md:grid-cols-3' : Object.values(colsVisible).filter(Boolean).length === 2 ? 'md:grid-cols-2' : 'md:grid-cols-1'} gap-4 items-start min-w-[300px] animate-fade-in pb-10`}>
                 {cols.map(col => colsVisible[col.id] && (
                   <div key={col.id} className="bg-gray-100/50 rounded-2xl p-3 flex flex-col h-auto min-h-[150px] border border-gray-200/50" onDragOver={(e)=>e.preventDefault()} onDrop={(e) => handleDropTodo(e, col.id)}>
-                    <div className="flex justify-between items-center mb-3 px-1"><h2 className={`font-black text-[13px] tracking-widest uppercase flex items-center gap-2 text-${col.color}-700`}><div className={`w-2 h-2 rounded-full bg-${col.color}-500`}></div>{col.title}</h2><span className="bg-white text-gray-500 text-xs font-bold px-2 py-0.5 rounded-full shadow-sm">{col.items.length}</span></div>
+                    <div className="flex justify-between items-center mb-3 px-1">
+                      <h2 className={`font-black text-[13px] tracking-widest uppercase flex items-center gap-2 ${col.textCls}`}>
+                        <div className={`w-2 h-2 rounded-full ${col.dotCls}`}></div>{col.title}
+                      </h2>
+                      <span className="bg-white text-gray-500 text-xs font-bold px-2 py-0.5 rounded-full shadow-sm">{col.items.length}</span>
+                    </div>
                     <div className="flex flex-col gap-2">
                       {col.items.map(todo => (
                         <TodoCard key={todo.id} todo={todo} categories={categories} 
@@ -545,8 +550,8 @@ export default function App() {
 
       {isCreateTodoModalOpen && <CreateTodoModal categories={categories} onClose={() => setIsCreateTodoModalOpen(false)} onSubmit={async(data) => { 
         const docRef = doc(collection(db, 'artifacts', appId, 'users', user.uid, 'todos')); 
-        const initialProgress = data.description.trim() ? [{ id: crypto.randomUUID(), text: `【任務建立】${data.description}`, createdAt: Date.now() }] : [];
-        await setDoc(docRef, { ...data, status: 'todo', progress: initialProgress, position: data.dueDate ? new Date(data.dueDate).getTime() : Date.now() + 315360000000, createdAt: Date.now(), updatedAt: Date.now() }); 
+        // 🔥 將說明儲存為獨立欄位 `description`，不再混入 timeline
+        await setDoc(docRef, { ...data, status: 'todo', progress: [], position: data.dueDate ? new Date(data.dueDate).getTime() : Date.now() + 315360000000, createdAt: Date.now(), updatedAt: Date.now() }); 
         setIsCreateTodoModalOpen(false); showToast("任務建立成功"); 
       }} />}
       
@@ -862,13 +867,16 @@ function TodoCard({ todo, categories, onToggle, onClick, onDelete, onDragStart, 
           <h3 className="text-sm md:text-base font-bold text-gray-800 leading-tight">{todo.title}</h3>
           <div className="flex flex-wrap gap-2 mt-2 items-center">
             {cat && <span className="text-[10px] px-2 py-0.5 rounded bg-gray-50 text-gray-600 border"><Tags size={10}/> {cat.name}</span>}
-            {todo.progress?.length > 0 && (
+            {/* 🔥 如果有任務說明，顯示小圖示 */}
+            {todo.description && <span className="text-gray-400" title="有任務說明"><AlignLeft size={14}/></span>}
+            
+            {(todo.progress || []).length > 0 && (
               <button onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }} className="text-[10px] text-gray-500 hover:text-indigo-600 flex items-center gap-1 bg-gray-50 px-2 py-0.5 rounded border transition-colors shadow-sm">
-                <AlignLeft size={10}/> {todo.progress.length} 筆紀錄 {isExpanded ? <ChevronUp size={12}/> : <ChevronDown size={12}/>}
+                <Clock size={10}/> {todo.progress.length} 筆進度 {isExpanded ? <ChevronUp size={12}/> : <ChevronDown size={12}/>}
               </button>
             )}
           </div>
-          {isExpanded && todo.progress?.length > 0 && (
+          {isExpanded && (todo.progress || []).length > 0 && (
             <div className="mt-3 pl-2 border-l-2 border-indigo-200 space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-1 animate-fade-in" onClick={(e) => e.stopPropagation()}>
                {todo.progress.map(p => (
                  <div key={p.id} className="text-xs text-gray-600 bg-gray-50 border border-gray-100 p-2 rounded-lg">
@@ -894,29 +902,130 @@ function CreateTodoModal({categories, onClose, onSubmit}) {
         <div><label className="block text-sm font-bold mb-1">任務名稱 *</label><input autoFocus required value={f.title} onChange={e=>setF({...f, title:e.target.value})} className="w-full border rounded-xl p-3 outline-none focus:ring-2 focus:ring-indigo-500"/></div>
         <div className="grid grid-cols-2 gap-4"><div><label className="block text-sm font-bold mb-1">死線</label><input type="date" value={f.dueDate} onChange={e=>setF({...f, dueDate:e.target.value})} className="w-full border rounded-xl p-2.5 text-sm outline-none"/></div><div><label className="block text-sm font-bold mb-1">緊急程度</label><select value={f.priority} onChange={e=>setF({...f, priority:e.target.value})} className="w-full border rounded-xl p-2.5 text-sm outline-none"><option value="urgent">🔴 緊急</option><option value="semi">🟡 次緊急</option><option value="normal">🟢 非緊急</option></select></div></div>
         <div><label className="block text-sm font-bold mb-1">分類標籤</label><select value={f.categoryId} onChange={e=>setF({...f, categoryId:e.target.value})} className="w-full border rounded-xl p-2.5 text-sm outline-none"><option value="">無分類</option>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-        <div><label className="block text-sm font-bold mb-1">初始說明</label><textarea value={f.description} onChange={e=>setF({...f, description:e.target.value})} className="w-full border rounded-xl p-3 text-sm h-20 outline-none" placeholder="將作為第一筆進度紀錄..." /></div>
+        {/* 🔥 更改文案為「任務說明」，並且作為獨立欄位 */}
+        <div><label className="block text-sm font-bold mb-1">任務說明 (選填)</label><textarea value={f.description} onChange={e=>setF({...f, description:e.target.value})} className="w-full border rounded-xl p-3 text-sm h-20 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="任務的詳細內容或備註..." /></div>
       </div>
       <div className="flex justify-end gap-3 mt-6"><button type="button" onClick={onClose} className="px-5 py-2.5 bg-gray-100 rounded-xl font-bold">取消</button><button type="submit" className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold">建立</button></div>
     </form></div>
   );
 }
 
+// 🔥 全新升級的任務詳情面板：支援標題編輯、獨立說明區塊
 function TodoDetailModal({ todo, categories, user, appId, db, onClose, showToast, reqConfirm }) {
-  const [nt, setNt] = useState(''); const [editId, setEditId] = useState(null); const [editText, setEditText] = useState('');
+  const [nt, setNt] = useState(''); 
+  const [editId, setEditId] = useState(null); 
+  const [editText, setEditText] = useState('');
+  
+  // 編輯狀態
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editTitle, setEditTitle] = useState(todo.title);
+  const [isEditingDesc, setIsEditingDesc] = useState(false);
+  const [editDesc, setEditDesc] = useState(todo.description || '');
+
   const updateField = async (f, v) => { try { await updateDoc(doc(db,'artifacts',appId,'users',user.uid,'todos',todo.id), { [f]: v, updatedAt:Date.now() }); } catch (err) {} };
+  
+  const saveTitle = async () => { if(editTitle.trim() && editTitle !== todo.title) { await updateField('title', editTitle); } setIsEditingTitle(false); };
+  const saveDesc = async () => { if(editDesc !== todo.description) { await updateField('description', editDesc); } setIsEditingDesc(false); };
+
   return (
-    <div className="fixed inset-0 bg-gray-900/40 flex justify-end z-50"><div className="bg-white w-full md:w-[450px] h-full flex flex-col shadow-2xl animate-slide-in-right">
-      <div className="p-5 border-b bg-gray-50">
-        <div className="flex justify-between mb-4"><h2 className={`text-xl font-bold ${todo.status==='done'?'line-through':''}`}>{todo.title}</h2><button onClick={onClose}><X size={20}/></button></div>
-        <div className="grid grid-cols-3 gap-2">
-          <div><label className="text-[10px] font-bold text-gray-500 uppercase">緊急程度</label><select disabled={todo.status==='done'} value={todo.priority||'semi'} onChange={e=>updateField('priority',e.target.value)} className="w-full text-xs md:text-sm border rounded-lg p-2"><option value="urgent">🔴 緊急</option><option value="semi">🟡 次緊</option><option value="normal">🟢 非緊</option></select></div>
-          <div><label className="text-[10px] font-bold text-gray-500 uppercase">死線</label><input type="date" disabled={todo.status==='done'} value={todo.dueDate||''} onChange={e=>updateField('dueDate',e.target.value)} className="w-full text-xs md:text-sm border rounded-lg p-2" /></div>
-          <div><label className="text-[10px] font-bold text-gray-500 uppercase">分類</label><select disabled={todo.status==='done'} value={todo.categoryId||''} onChange={e=>updateField('categoryId',e.target.value)} className="w-full text-xs md:text-sm border rounded-lg p-2"><option value="">無分類</option>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+    <div className="fixed inset-0 bg-gray-900/40 flex justify-end z-50">
+      <div className="bg-white w-full md:w-[450px] h-full flex flex-col shadow-2xl animate-slide-in-right">
+        
+        {/* 標頭區 */}
+        <div className="p-5 border-b bg-gray-50">
+          <div className="flex justify-between items-start mb-4">
+            
+            {/* 標題編輯區 */}
+            {isEditingTitle ? (
+              <div className="flex-1 mr-3 flex flex-col gap-2">
+                <input autoFocus value={editTitle} onChange={e=>setEditTitle(e.target.value)} className="w-full text-lg font-bold border border-gray-300 rounded px-3 py-1.5 outline-none focus:ring-2 focus:ring-indigo-500" />
+                <div className="flex gap-2">
+                  <button onClick={saveTitle} className="text-xs bg-indigo-600 text-white font-bold px-3 py-1.5 rounded">儲存標題</button>
+                  <button onClick={()=>{setEditTitle(todo.title); setIsEditingTitle(false);}} className="text-xs bg-gray-200 text-gray-700 font-bold px-3 py-1.5 rounded">取消</button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 mr-3 group flex items-start justify-between cursor-pointer" onClick={()=>setIsEditingTitle(true)}>
+                 <h2 className={`text-xl font-bold ${todo.status==='done'?'line-through text-gray-400':'text-gray-800'}`}>{todo.title}</h2>
+                 <button className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-indigo-600 transition-opacity"><Edit2 size={16}/></button>
+              </div>
+            )}
+            
+            <button onClick={onClose} className="p-1.5 text-gray-400 hover:bg-gray-200 rounded-lg transition-colors"><X size={20}/></button>
+          </div>
+          
+          <div className="grid grid-cols-3 gap-2">
+            <div><label className="text-[10px] font-bold text-gray-500 uppercase">緊急程度</label><select disabled={todo.status==='done'} value={todo.priority||'semi'} onChange={e=>updateField('priority',e.target.value)} className="w-full text-xs md:text-sm border rounded-lg p-2"><option value="urgent">🔴 緊急</option><option value="semi">🟡 次緊</option><option value="normal">🟢 非緊</option></select></div>
+            <div><label className="text-[10px] font-bold text-gray-500 uppercase">死線</label><input type="date" disabled={todo.status==='done'} value={todo.dueDate||''} onChange={e=>updateField('dueDate',e.target.value)} className="w-full text-xs md:text-sm border rounded-lg p-2" /></div>
+            <div><label className="text-[10px] font-bold text-gray-500 uppercase">分類</label><select disabled={todo.status==='done'} value={todo.categoryId||''} onChange={e=>updateField('categoryId',e.target.value)} className="w-full text-xs md:text-sm border rounded-lg p-2"><option value="">無分類</option>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+          </div>
         </div>
+
+        {/* 內容區 */}
+        <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
+          
+          {/* 🔥 獨立的任務說明區塊 */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-2 group">
+              <h3 className="text-sm font-bold text-gray-400 flex items-center gap-2"><AlignLeft size={16}/> 任務說明</h3>
+              {!isEditingDesc && <button onClick={()=>setIsEditingDesc(true)} className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-indigo-600 transition-opacity"><Edit2 size={14}/></button>}
+            </div>
+            
+            {isEditingDesc ? (
+              <div className="flex flex-col gap-2">
+                <textarea autoFocus value={editDesc} onChange={e=>setEditDesc(e.target.value)} className="w-full border border-gray-300 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 min-h-[100px]" placeholder="添加任務詳細說明..." />
+                <div className="flex gap-2 justify-end">
+                   <button onClick={()=>{setEditDesc(todo.description || ''); setIsEditingDesc(false);}} className="text-xs bg-gray-200 text-gray-700 font-bold px-4 py-2 rounded-lg">取消</button>
+                   <button onClick={saveDesc} className="text-xs bg-indigo-600 text-white font-bold px-4 py-2 rounded-lg shadow-sm">儲存說明</button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-gray-600 bg-gray-50 p-4 rounded-xl border border-gray-100 whitespace-pre-wrap min-h-[60px] cursor-pointer hover:bg-gray-100 transition-colors" onClick={()=>setIsEditingDesc(true)}>
+                {todo.description ? todo.description : <span className="text-gray-400 italic">點擊添加任務說明...</span>}
+              </div>
+            )}
+          </div>
+
+          <h3 className="text-sm font-bold text-gray-400 mb-5 flex items-center gap-2"><Clock size={16}/>進度時間軸</h3>
+          <div className="border-l-2 border-indigo-100 ml-3 space-y-6">
+            {(todo.progress||[]).length === 0 && <div className="text-xs text-gray-400 pl-4 italic">尚無進度紀錄</div>}
+            {(todo.progress||[]).map(p=>(
+              <div key={p.id} className="relative pl-6 group">
+                <div className="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-indigo-50 border-2 border-indigo-400"></div>
+                {editId===p.id ? (
+                  <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-100">
+                    <textarea value={editText} onChange={e=>setEditText(e.target.value)} className="w-full p-2 text-sm border rounded outline-none"/>
+                    <div className="flex justify-end gap-2 mt-2">
+                      <button onClick={()=>setEditId(null)} className="text-xs px-3 py-1 bg-white border rounded font-bold">取消</button>
+                      <button onClick={async()=>{await updateDoc(doc(db,'artifacts',appId,'users',user.uid,'todos',todo.id),{progress:todo.progress.map(x=>x.id===p.id?{...x,text:editText}:x),updatedAt:Date.now()});setEditId(null);}} className="text-xs px-3 py-1 bg-indigo-600 text-white rounded font-bold">儲存</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 p-3.5 rounded-xl relative">
+                    {todo.status!=='done' && (
+                      <div className="absolute top-2 right-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 flex gap-1 bg-white p-0.5 rounded shadow-sm">
+                        <button onClick={()=>{setEditId(p.id);setEditText(p.text);}} className="p-1 hover:text-indigo-600"><Edit2 size={14}/></button>
+                        <button onClick={()=>reqConfirm("刪除紀錄","確定刪除？",async()=>await updateDoc(doc(db,'artifacts',appId,'users',user.uid,'todos',todo.id),{progress:todo.progress.filter(x=>x.id!==p.id)}))} className="p-1 hover:text-red-500"><Trash2 size={14}/></button>
+                      </div>
+                    )}
+                    <div className="text-[10px] text-gray-400 mb-1">{new Date(p.createdAt).toLocaleString()}</div>
+                    <div className="text-sm leading-relaxed whitespace-pre-wrap">{p.text}</div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        {/* 發布進度輸入框 */}
+        {todo.status!=='done' && (
+          <div className="p-4 border-t flex gap-2">
+            <textarea value={nt} onChange={e=>setNt(e.target.value)} className="flex-1 border rounded-xl p-3 text-sm h-14 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="發佈新進度..."/>
+            <button onClick={async()=>{if(!nt.trim())return;await updateDoc(doc(db,'artifacts',appId,'users',user.uid,'todos',todo.id),{progress:[...(todo.progress||[]),{id:crypto.randomUUID(),text:nt,createdAt:Date.now()}]});setNt('');}} disabled={!nt.trim()} className="bg-indigo-600 disabled:bg-gray-300 text-white px-5 rounded-xl transition-colors"><Send size={18}/></button>
+          </div>
+        )}
       </div>
-      <div className="flex-1 overflow-y-auto p-5 custom-scrollbar"><h3 className="text-sm font-bold text-gray-400 mb-5 flex items-center gap-2"><Clock size={16}/>進度時間軸</h3><div className="border-l-2 border-indigo-100 ml-3 space-y-6">{(todo.progress||[]).map(p=><div key={p.id} className="relative pl-6 group"><div className="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-indigo-50 border-2 border-indigo-400"></div>{editId===p.id?<div className="bg-indigo-50 p-3 rounded-xl border border-indigo-100"><textarea value={editText} onChange={e=>setEditText(e.target.value)} className="w-full p-2 text-sm border rounded outline-none"/><div className="flex justify-end gap-2 mt-2"><button onClick={()=>setEditId(null)} className="text-xs px-3 py-1 bg-white border rounded">取消</button><button onClick={async()=>{await updateDoc(doc(db,'artifacts',appId,'users',user.uid,'todos',todo.id),{progress:todo.progress.map(x=>x.id===p.id?{...x,text:editText}:x),updatedAt:Date.now()});setEditId(null);}} className="text-xs px-3 py-1 bg-indigo-600 text-white rounded">儲存</button></div></div>:<div className="bg-gray-50 p-3.5 rounded-xl relative">{todo.status!=='done'&&<div className="absolute top-2 right-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 flex gap-1 bg-white p-0.5 rounded shadow-sm"><button onClick={()=>{setEditId(p.id);setEditText(p.text);}} className="p-1 hover:text-indigo-600"><Edit2 size={14}/></button><button onClick={()=>reqConfirm("刪除紀錄","確定刪除？",async()=>await updateDoc(doc(db,'artifacts',appId,'users',user.uid,'todos',todo.id),{progress:todo.progress.filter(x=>x.id!==p.id)}))} className="p-1 hover:text-red-500"><Trash2 size={14}/></button></div>}<div className="text-[10px] text-gray-400 mb-1">{new Date(p.createdAt).toLocaleString()}</div><div className="text-sm leading-relaxed whitespace-pre-wrap">{p.text}</div></div>}</div>)}</div></div>
-      {todo.status!=='done'&&<div className="p-4 border-t flex gap-2"><textarea value={nt} onChange={e=>setNt(e.target.value)} className="flex-1 border rounded-xl p-3 text-sm h-14 outline-none" placeholder="新增進展..."/><button onClick={async()=>{if(!nt.trim())return;await updateDoc(doc(db,'artifacts',appId,'users',user.uid,'todos',todo.id),{progress:[...(todo.progress||[]),{id:crypto.randomUUID(),text:nt,createdAt:Date.now()}]});setNt('');}} disabled={!nt.trim()} className="bg-indigo-600 disabled:bg-gray-300 text-white px-5 rounded-xl"><Send size={18}/></button></div>}
-    </div></div>
+    </div>
   );
 }
 
@@ -948,3 +1057,6 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
+
+
+```
