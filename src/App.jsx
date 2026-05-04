@@ -1,4 +1,3 @@
-```react
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   CheckCircle2, Circle, Clock, Plus, Trash2, Edit2, 
@@ -42,7 +41,7 @@ const Toast = ({ message, type = 'info', onClose }) => {
   if (!message) return null;
   const bgColor = type === 'error' ? 'bg-red-500' : 'bg-gray-800';
   return (
-    <div className={`fixed bottom-4 right-4 ${bgColor} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 z-[150] animate-bounce-short`}>
+    <div className={"fixed bottom-4 right-4 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 z-[150] animate-bounce-short " + bgColor}>
       {type === 'error' ? <AlertCircle size={20} /> : <CheckCircle2 size={20} />}
       <span>{message}</span>
       <button onClick={onClose} className="hover:text-gray-300 ml-2"><X size={16} /></button>
@@ -162,15 +161,12 @@ export default function App() {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         try {
-          // 向 Firestore 查詢該 Email 是否在 whitelist 集合中
           const whitelistRef = doc(db, 'whitelist', currentUser.email);
           const whitelistSnap = await getDoc(whitelistRef);
 
           if (whitelistSnap.exists()) {
-            // 白名單驗證通過
             setUser(currentUser);
           } else {
-            // 不在白名單內，強制登出
             await signOut(auth);
             setUser(null);
             showToast("無存取權限。您的帳號不在資料庫授權名單中。", "error");
@@ -196,7 +192,7 @@ export default function App() {
       await signInWithPopup(auth, provider);
     } catch (error) {
       if (error.code !== 'auth/popup-closed-by-user') {
-        showToast(`登入失敗: ${error.message}`, "error");
+        showToast("登入失敗: " + error.message, "error");
       }
     } finally {
       setIsLoggingIn(false);
@@ -299,7 +295,6 @@ export default function App() {
     try { await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'todos', todoId), { priority: targetPriority, position: newPos, updatedAt: Date.now() }); } catch (err) {}
   };
 
-  // 🔥 解決 Tailwind 顏色變數被 purge 的問題，直接使用完整的 Class 字串
   const cols = [
     { id: 'urgent', title: '緊急任務', textCls: 'text-red-700', dotCls: 'bg-red-500', items: activeTodos.filter(t => t.priority === 'urgent') },
     { id: 'semi', title: '次緊急任務', textCls: 'text-yellow-700', dotCls: 'bg-yellow-500', items: activeTodos.filter(t => t.priority === 'semi') },
@@ -329,7 +324,7 @@ export default function App() {
           <button 
             onClick={handleGoogleLogin} 
             disabled={isLoggingIn}
-            className="w-full bg-white border-2 border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 text-gray-800 font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-3 transition-all disabled:opacity-50"
+            className={"w-full bg-white border-2 border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 text-gray-800 font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-3 transition-all " + (isLoggingIn ? "opacity-50 cursor-not-allowed" : "")}
           >
             {isLoggingIn ? <Loader2 className="animate-spin text-indigo-500" size={20} /> : <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google Logo" className="w-5 h-5" />}
             {isLoggingIn ? "連線驗證中..." : "使用 Google 帳號登入"}
@@ -375,8 +370,8 @@ export default function App() {
           </div>
           
           <div className="hidden md:flex bg-gray-100/80 p-1 rounded-lg border border-gray-200/50">
-            <button onClick={() => setMainModule('tasks')} className={`px-5 py-1.5 text-sm font-bold rounded-md flex items-center gap-2 transition-all ${mainModule === 'tasks' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><CheckCircle2 size={16}/> 待辦事項</button>
-            <button onClick={() => setMainModule('notes')} className={`px-5 py-1.5 text-sm font-bold rounded-md flex items-center gap-2 transition-all ${mainModule === 'notes' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><FolderOpen size={16}/> 自由紀錄區</button>
+            <button onClick={() => setMainModule('tasks')} className={"px-5 py-1.5 text-sm font-bold rounded-md flex items-center gap-2 transition-all " + (mainModule === 'tasks' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700')}><CheckCircle2 size={16}/> 待辦事項</button>
+            <button onClick={() => setMainModule('notes')} className={"px-5 py-1.5 text-sm font-bold rounded-md flex items-center gap-2 transition-all " + (mainModule === 'notes' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700')}><FolderOpen size={16}/> 自由紀錄區</button>
           </div>
         </div>
         {mainModule === 'tasks' ? (
@@ -387,14 +382,14 @@ export default function App() {
             </div>
             <div className="h-6 w-px bg-gray-200 flex-shrink-0"></div>
             <div className="flex bg-gray-100 p-1 rounded-lg flex-shrink-0 mr-1">
-              <button onClick={() => setTaskViewMode('board')} className={`px-3 py-1.5 text-xs font-bold rounded-md ${taskViewMode === 'board' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500'}`}>看板</button>
-              <button onClick={() => setTaskViewMode('history')} className={`px-3 py-1.5 text-xs font-bold rounded-md flex items-center gap-1 ${taskViewMode === 'history' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500'}`}><History size={14}/> 歷史</button>
+              <button onClick={() => setTaskViewMode('board')} className={"px-3 py-1.5 text-xs font-bold rounded-md " + (taskViewMode === 'board' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500')}>看板</button>
+              <button onClick={() => setTaskViewMode('history')} className={"px-3 py-1.5 text-xs font-bold rounded-md flex items-center gap-1 " + (taskViewMode === 'history' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500')}><History size={14}/> 歷史</button>
             </div>
             {taskViewMode === 'board' && (
               <div className="flex bg-gray-100 p-1 rounded-lg flex-shrink-0 mr-1 hidden sm:flex">
-                <button onClick={() => setColsVisible(prev => ({...prev, urgent: !prev.urgent}))} className={`px-2 py-1.5 text-xs font-medium rounded-md flex items-center gap-1 ${colsVisible.urgent ? 'bg-white text-red-600 shadow-sm' : 'text-gray-400'}`}><Eye size={14}/> 緊急</button>
-                <button onClick={() => setColsVisible(prev => ({...prev, semi: !prev.semi}))} className={`px-2 py-1.5 text-xs font-medium rounded-md flex items-center gap-1 ${colsVisible.semi ? 'bg-white text-yellow-600 shadow-sm' : 'text-gray-400'}`}><Eye size={14}/> 次緊急</button>
-                <button onClick={() => setColsVisible(prev => ({...prev, normal: !prev.normal}))} className={`px-2 py-1.5 text-xs font-medium rounded-md flex items-center gap-1 ${colsVisible.normal ? 'bg-white text-green-600 shadow-sm' : 'text-gray-400'}`}><Eye size={14}/> 非緊急</button>
+                <button onClick={() => setColsVisible(prev => ({...prev, urgent: !prev.urgent}))} className={"px-2 py-1.5 text-xs font-medium rounded-md flex items-center gap-1 " + (colsVisible.urgent ? 'bg-white text-red-600 shadow-sm' : 'text-gray-400')}><Eye size={14}/> 緊急</button>
+                <button onClick={() => setColsVisible(prev => ({...prev, semi: !prev.semi}))} className={"px-2 py-1.5 text-xs font-medium rounded-md flex items-center gap-1 " + (colsVisible.semi ? 'bg-white text-yellow-600 shadow-sm' : 'text-gray-400')}><Eye size={14}/> 次緊急</button>
+                <button onClick={() => setColsVisible(prev => ({...prev, normal: !prev.normal}))} className={"px-2 py-1.5 text-xs font-medium rounded-md flex items-center gap-1 " + (colsVisible.normal ? 'bg-white text-green-600 shadow-sm' : 'text-gray-400')}><Eye size={14}/> 非緊急</button>
               </div>
             )}
             {taskViewMode === 'board' && (<button onClick={() => setIsCategoryModalOpen(true)} className="flex-shrink-0 p-2 border border-gray-200 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg flex items-center gap-1 text-sm font-medium"><Tags size={16} /> <span className="hidden md:inline">分類</span></button>)}
@@ -410,8 +405,8 @@ export default function App() {
 
       {/* 手機版導航與登出 */}
       <div className="md:hidden flex bg-white border-b border-gray-200 p-1 rounded-lg mb-2 flex-shrink-0 items-center">
-        <button onClick={() => setMainModule('tasks')} className={`flex-1 py-2 text-sm font-bold rounded-md flex justify-center items-center gap-2 ${mainModule === 'tasks' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-500'}`}><CheckCircle2 size={16}/> 任務</button>
-        <button onClick={() => setMainModule('notes')} className={`flex-1 py-2 text-sm font-bold rounded-md flex justify-center items-center gap-2 ${mainModule === 'notes' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-500'}`}><FolderOpen size={16}/> 筆記</button>
+        <button onClick={() => setMainModule('tasks')} className={"flex-1 py-2 text-sm font-bold rounded-md flex justify-center items-center gap-2 " + (mainModule === 'tasks' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-500')}><CheckCircle2 size={16}/> 任務</button>
+        <button onClick={() => setMainModule('notes')} className={"flex-1 py-2 text-sm font-bold rounded-md flex justify-center items-center gap-2 " + (mainModule === 'notes' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-500')}><FolderOpen size={16}/> 筆記</button>
         <div className="w-px h-6 bg-gray-200 mx-1"></div>
         <button onClick={handleLogout} className="px-3 py-2 text-gray-500 hover:text-red-500 flex justify-center"><LogOut size={16}/></button>
       </div>
@@ -420,12 +415,12 @@ export default function App() {
         {mainModule === 'tasks' && (
           <div className="w-full h-full overflow-x-auto overflow-y-auto pb-4 custom-scrollbar">
             {taskViewMode === 'board' ? (
-              <div className={`grid grid-cols-1 ${Object.values(colsVisible).filter(Boolean).length === 3 ? 'md:grid-cols-3' : Object.values(colsVisible).filter(Boolean).length === 2 ? 'md:grid-cols-2' : 'md:grid-cols-1'} gap-4 items-start min-w-[300px] animate-fade-in pb-10`}>
+              <div className={"grid gap-4 items-start min-w-[300px] animate-fade-in pb-10 " + (Object.values(colsVisible).filter(Boolean).length === 3 ? 'grid-cols-1 md:grid-cols-3' : Object.values(colsVisible).filter(Boolean).length === 2 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1')}>
                 {cols.map(col => colsVisible[col.id] && (
                   <div key={col.id} className="bg-gray-100/50 rounded-2xl p-3 flex flex-col h-auto min-h-[150px] border border-gray-200/50" onDragOver={(e)=>e.preventDefault()} onDrop={(e) => handleDropTodo(e, col.id)}>
                     <div className="flex justify-between items-center mb-3 px-1">
-                      <h2 className={`font-black text-[13px] tracking-widest uppercase flex items-center gap-2 ${col.textCls}`}>
-                        <div className={`w-2 h-2 rounded-full ${col.dotCls}`}></div>{col.title}
+                      <h2 className={"font-black text-[13px] tracking-widest uppercase flex items-center gap-2 " + col.textCls}>
+                        <div className={"w-2 h-2 rounded-full " + col.dotCls}></div>{col.title}
                       </h2>
                       <span className="bg-white text-gray-500 text-xs font-bold px-2 py-0.5 rounded-full shadow-sm">{col.items.length}</span>
                     </div>
@@ -468,7 +463,7 @@ export default function App() {
                   onDragLeave={(e) => e.currentTarget.classList.remove('bg-indigo-50', 'border-indigo-400')}
                   onDrop={(e) => handleDropNoteToFolder(e, null)}
                   onClick={() => setCurrentFolderId(null)} 
-                  className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 mb-1 border border-transparent transition-all ${currentFolderId === null ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}
+                  className={"w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 mb-1 border border-transparent transition-all " + (currentFolderId === null ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50')}
                  >
                   <FolderOpen size={16} className={currentFolderId === null ? 'text-indigo-500' : 'text-gray-400'}/> 根目錄
                 </button>
@@ -550,7 +545,6 @@ export default function App() {
 
       {isCreateTodoModalOpen && <CreateTodoModal categories={categories} onClose={() => setIsCreateTodoModalOpen(false)} onSubmit={async(data) => { 
         const docRef = doc(collection(db, 'artifacts', appId, 'users', user.uid, 'todos')); 
-        // 🔥 將說明儲存為獨立欄位 `description`，不再混入 timeline
         await setDoc(docRef, { ...data, status: 'todo', progress: [], position: data.dueDate ? new Date(data.dueDate).getTime() : Date.now() + 315360000000, createdAt: Date.now(), updatedAt: Date.now() }); 
         setIsCreateTodoModalOpen(false); showToast("任務建立成功"); 
       }} />}
@@ -702,7 +696,7 @@ function RichTextNoteEditorModal({ note, folders, buildFolderOptions, onClose, u
         <div className="flex items-center gap-4">
           <button onClick={onClose} className="p-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors"><ArrowLeft size={20}/></button>
           <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3">
-            <span className={`text-xs font-bold ${!navigator.onLine ? 'text-red-500' : isSaving ? 'text-indigo-500' : 'text-green-500'}`}>{!navigator.onLine ? '⚡ 離線暫存中' : isSaving ? '同步雲端中...' : '已儲存'}</span>
+            <span className={"text-xs font-bold " + (!navigator.onLine ? 'text-red-500' : isSaving ? 'text-indigo-500' : 'text-green-500')}>{!navigator.onLine ? '⚡ 離線暫存中' : isSaving ? '同步雲端中...' : '已儲存'}</span>
             <select value={folderId || 'root'} onChange={(e) => setFolderId(e.target.value === 'root' ? null : e.target.value)} className="text-xs bg-gray-100 text-gray-600 border-none rounded py-1 px-2 font-medium outline-none cursor-pointer hidden md:block"><option value="root">📁 根目錄</option>{buildFolderOptions(null).map(opt => <option key={opt.id} value={opt.id}>📁 {opt.name}</option>)}</select>
           </div>
         </div>
@@ -710,7 +704,7 @@ function RichTextNoteEditorModal({ note, folders, buildFolderOptions, onClose, u
         <div className="flex items-center gap-1.5 md:gap-2 bg-gray-50 p-1.5 rounded-xl border border-gray-100 overflow-x-auto hide-scrollbar">
           {isUploading && <div className="flex items-center gap-2 text-indigo-600 font-bold text-xs px-2"><Loader2 className="animate-spin" size={16}/> 處理中</div>}
           
-          <button onClick={toggleListening} disabled={isUploading} className={`flex-shrink-0 p-2 rounded-lg font-bold text-sm flex items-center gap-1.5 transition-all ${isListening ? 'bg-red-100 text-red-600 animate-pulse' : 'text-gray-600 hover:bg-gray-200'} disabled:opacity-50`}><Mic size={18}/> <span className="hidden md:inline">語音</span></button>
+          <button onClick={toggleListening} disabled={isUploading} className={"flex-shrink-0 p-2 rounded-lg font-bold text-sm flex items-center gap-1.5 transition-all " + (isListening ? 'bg-red-100 text-red-600 animate-pulse' : 'text-gray-600 hover:bg-gray-200') + (isUploading ? " opacity-50" : "")}><Mic size={18}/> <span className="hidden md:inline">語音</span></button>
           <div className="w-px h-6 bg-gray-300"></div>
           <label className="flex-shrink-0 p-2 rounded-lg text-gray-600 hover:bg-gray-200 cursor-pointer flex items-center gap-1.5 transition-all font-bold text-sm"><ImageIcon size={18}/> <span className="hidden md:inline">圖片</span><input type="file" accept="image/*" onChange={handleInlineImage} className="hidden" disabled={isUploading} /></label>
           <label className="flex-shrink-0 p-2 rounded-lg text-gray-600 hover:bg-gray-200 cursor-pointer flex items-center gap-1.5 transition-all font-bold text-sm"><Paperclip size={18}/> <span className="hidden md:inline">本地附檔</span><input type="file" onChange={handleFileUpload} className="hidden" disabled={isUploading} /></label>
@@ -741,7 +735,7 @@ function RichTextNoteEditorModal({ note, folders, buildFolderOptions, onClose, u
                   <div key={file.id} className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-xl hover:border-indigo-300 transition-colors">
                     <div className="flex items-center gap-3 min-w-0">
                       
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${file.type === 'drive-picker' ? 'bg-transparent' : 'bg-indigo-50 text-indigo-500'}`}>
+                      <div className={"w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 " + (file.type === 'drive-picker' ? 'bg-transparent' : 'bg-indigo-50 text-indigo-500')}>
                         {file.type === 'drive-picker' ? <img src={file.iconUrl} alt="drive icon" className="w-6 h-6" /> : <FileText size={20}/>}
                       </div>
                       
@@ -824,8 +818,8 @@ function CanvasBoard({ initialData, onChange, onRemove }) {
           <input type="color" value={brushColor} onChange={(e)=>setBrushColor(e.target.value)} disabled={isEraser} className="w-8 h-8 rounded cursor-pointer border-0 p-0" />
           <input type="range" min="1" max="20" value={brushSize} onChange={(e)=>setBrushSize(e.target.value)} className="w-20 md:w-32 accent-indigo-500" />
           <div className="w-px h-6 bg-gray-300 mx-1"></div>
-          <button onClick={() => setIsEraser(false)} className={`p-1.5 md:p-2 rounded-lg ${!isEraser ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:bg-gray-200'}`}><PenTool size={18}/></button>
-          <button onClick={() => setIsEraser(true)} className={`p-1.5 md:p-2 rounded-lg ${isEraser ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:bg-gray-200'}`}><Eraser size={18}/></button>
+          <button onClick={() => setIsEraser(false)} className={"p-1.5 md:p-2 rounded-lg " + (!isEraser ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:bg-gray-200')}><PenTool size={18}/></button>
+          <button onClick={() => setIsEraser(true)} className={"p-1.5 md:p-2 rounded-lg " + (isEraser ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:bg-gray-200')}><Eraser size={18}/></button>
         </div>
         <div className="flex items-center gap-2"><button onClick={clearCanvas} className="text-xs font-bold text-gray-500 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors">清空</button><button onClick={onRemove} className="text-xs font-bold text-white bg-red-500 hover:bg-red-600 px-2 py-1.5 rounded-lg transition-colors flex items-center gap-1"><Trash2 size={12}/> <span className="hidden sm:inline">刪除畫布</span></button></div>
       </div>
@@ -840,7 +834,7 @@ function FolderTree({ folders, parentId, currentFolderId, onSelect, onDropNote, 
     <div className="space-y-1 mt-1">
       {children.map(folder => (
         <div key={folder.id}>
-          <button onDragOver={(e) => e.preventDefault()} onDragEnter={(e) => e.currentTarget.classList.add('bg-indigo-50', 'border-indigo-400')} onDragLeave={(e) => e.currentTarget.classList.remove('bg-indigo-50', 'border-indigo-400')} onDrop={(e) => onDropNote(e, folder.id)} onClick={() => onSelect(folder.id)} className={`w-full text-left py-2 pr-2 rounded-xl text-sm font-bold flex items-center gap-2 border border-transparent transition-all ${currentFolderId === folder.id ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`} style={{ paddingLeft: `${level * 16 + 12}px` }}>
+          <button onDragOver={(e) => e.preventDefault()} onDragEnter={(e) => e.currentTarget.classList.add('bg-indigo-50', 'border-indigo-400')} onDragLeave={(e) => e.currentTarget.classList.remove('bg-indigo-50', 'border-indigo-400')} onDrop={(e) => onDropNote(e, folder.id)} onClick={() => onSelect(folder.id)} className={"w-full text-left py-2 pr-2 rounded-xl text-sm font-bold flex items-center gap-2 border border-transparent transition-all " + (currentFolderId === folder.id ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50')} style={{ paddingLeft: (level * 16 + 12) + "px" }}>
             {folders.some(f => f.parentId === folder.id) ? <ChevronDown size={14} className="text-gray-400"/> : <span className="w-3.5 inline-block"></span>}<Folder size={14} className={currentFolderId === folder.id ? 'text-indigo-500' : 'text-gray-400'} /><span className="truncate pointer-events-none">{folder.name}</span>
           </button>
           <FolderTree folders={folders} parentId={folder.id} currentFolderId={currentFolderId} onSelect={onSelect} onDropNote={onDropNote} level={level + 1} />
@@ -858,8 +852,8 @@ function TodoCard({ todo, categories, onToggle, onClick, onDelete, onDragStart, 
   if (todo.dueDate) { const d = new Date(todo.dueDate); d.setHours(23,59,59); isOverdue = d < new Date() && todo.status !== 'done'; dueText = d.toLocaleDateString('zh-TW',{month:'short',day:'numeric'}); }
   
   return (
-    <div draggable data-id={todo.id} onDragStart={onDragStart} onDragEnd={onDragEnd} onClick={onClick} className={`draggable-card group bg-white p-3 md:p-4 rounded-xl shadow-sm border cursor-pointer flex flex-col gap-2 transition-all ${isOverdue?'border-red-300 bg-red-50':'border-white hover:border-indigo-200'}`}>
-      {todo.dueDate && (<div className={`text-[10px] md:text-[11px] font-bold flex items-center gap-1 w-max px-2 py-0.5 rounded ${isOverdue ? 'bg-red-100 text-red-600' : 'bg-blue-50 text-blue-600'}`}><Calendar size={12} /> {isOverdue ? `已逾期 (${dueText})` : `${dueText} 截止`}</div>)}
+    <div draggable data-id={todo.id} onDragStart={onDragStart} onDragEnd={onDragEnd} onClick={onClick} className={"draggable-card group bg-white p-3 md:p-4 rounded-xl shadow-sm border cursor-pointer flex flex-col gap-2 transition-all " + (isOverdue ? 'border-red-300 bg-red-50' : 'border-white hover:border-indigo-200')}>
+      {todo.dueDate && (<div className={"text-[10px] md:text-[11px] font-bold flex items-center gap-1 w-max px-2 py-0.5 rounded " + (isOverdue ? 'bg-red-100 text-red-600' : 'bg-blue-50 text-blue-600')}><Calendar size={12} /> {isOverdue ? "已逾期 (" + dueText + ")" : dueText + " 截止"}</div>)}
       <div className="flex gap-2.5 items-start">
         <div className="text-gray-300 mt-0.5 cursor-grab hidden md:block opacity-0 group-hover:opacity-100"><GripVertical size={16} /></div>
         <button onClick={onToggle} title="標示為完成" className="mt-0.5 flex-shrink-0 text-gray-300 hover:text-green-500 group/btn transition-colors"><Circle size={20} className="block group-hover/btn:hidden" /><CheckCircle2 size={20} className="hidden group-hover/btn:block" /></button>
@@ -946,7 +940,7 @@ function TodoDetailModal({ todo, categories, user, appId, db, onClose, showToast
               </div>
             ) : (
               <div className="flex-1 mr-3 group flex items-start justify-between cursor-pointer" onClick={()=>setIsEditingTitle(true)}>
-                 <h2 className={`text-xl font-bold ${todo.status==='done'?'line-through text-gray-400':'text-gray-800'}`}>{todo.title}</h2>
+                 <h2 className={"text-xl font-bold " + (todo.status==='done' ? 'line-through text-gray-400' : 'text-gray-800')}>{todo.title}</h2>
                  <button className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-indigo-600 transition-opacity"><Edit2 size={16}/></button>
               </div>
             )}
@@ -1057,6 +1051,3 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
-
-
-```
