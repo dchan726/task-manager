@@ -1,4 +1,3 @@
-```react
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   CheckCircle2, Circle, Clock, Plus, Trash2, Edit2, 
@@ -706,7 +705,8 @@ function RichTextNoteEditorModal({ note, folders, buildFolderOptions, onClose, u
         const folderData = { id: folder.id, name: folder.name };
         setDriveUploadFolder(folderData);
         localStorage.setItem('driveUploadFolder', JSON.stringify(folderData)); 
-        showToast(`太棒了！未來將預設上傳至：📁 ${folder.name}`);
+        // 🔥 Vercel 編譯防錯：將反引號改為字串串接
+        showToast("太棒了！未來將預設上傳至：📁 " + folder.name);
       },
       (errorMsg) => { showToast("開啟 Google Drive 失敗", "error"); }
     );
@@ -744,49 +744,17 @@ function RichTextNoteEditorModal({ note, folders, buildFolderOptions, onClose, u
 
   // 🔥 匯出筆記為 HTML 檔案功能
   const handleExportNote = () => {
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html lang="zh-TW">
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>${title || '未命名筆記'}</title>
-        <style>
-          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 40px 20px; background-color: #f9fafb; }
-          .paper { background: #fff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-          h1 { font-size: 2.5rem; color: #111; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; }
-          img { max-width: 100%; height: auto; border-radius: 8px; margin: 20px 0; border: 1px solid #e5e7eb; }
-          .content { margin-bottom: 40px; font-size: 1.1rem; }
-          .canvas-container { margin: 20px 0; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; background: #fff; text-align: center; }
-          .canvas-container h4 { margin: 0; padding: 10px; background: #f3f4f6; color: #666; font-size: 0.9rem; border-bottom: 1px solid #e5e7eb; }
-          .attachments { margin-top: 40px; padding-top: 20px; border-top: 2px dashed #e5e7eb; }
-          .attachment-item { display: inline-block; background: #f3f4f6; padding: 10px 15px; border-radius: 8px; margin: 5px 10px 5px 0; text-decoration: none; color: #4f46e5; font-weight: bold; font-size: 0.9em; border: 1px solid #e5e7eb; }
-          .attachment-item:hover { background: #e0e7ff; }
-        </style>
-      </head>
-      <body>
-        <div class="paper">
-          <h1>${title || '未命名筆記'}</h1>
-          <div class="content">${content}</div>
-          
-          ${canvases.length > 0 ? canvases.map((c, i) => `<div class="canvas-container"><h4>🖍️ 手寫畫布區塊 ${i+1}</h4><img src="${c.data}" alt="Canvas ${i+1}" /></div>`).join('') : ''}
-          
-          ${attachments.length > 0 ? `
-            <div class="attachments">
-              <h3>📎 附件連結</h3>
-              ${attachments.map(a => `<a class="attachment-item" href="${a.type === 'drive-picker' ? a.url : a.data}" ${a.type === 'drive-picker' ? 'target="_blank"' : `download="${a.name}"`}>${a.name}</a>`).join('')}
-            </div>
-          ` : ''}
-        </div>
-      </body>
-      </html>
-    `;
+    const docTitle = title || '未命名筆記';
+    const canvasHtml = canvases.length > 0 ? canvases.map((c, i) => "<div class='canvas-container'><h4>🖍️ 手寫畫布區塊 " + (i+1) + "</h4><img src='" + c.data + "' alt='Canvas " + (i+1) + "' /></div>").join('') : '';
+    const attHtml = attachments.length > 0 ? "<div class='attachments'><h3>📎 附件連結</h3>" + attachments.map(a => "<a class='attachment-item' href='" + (a.type === 'drive-picker' ? a.url : a.data) + "' " + (a.type === 'drive-picker' ? "target='_blank'" : "download='" + a.name + "'") + ">" + a.name + "</a>").join('') + "</div>" : '';
+    
+    const htmlContent = "<!DOCTYPE html><html lang='zh-TW'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>" + docTitle + "</title><style>body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 40px 20px; background-color: #f9fafb; } .paper { background: #fff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); } h1 { font-size: 2.5rem; color: #111; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; } img { max-width: 100%; height: auto; border-radius: 8px; margin: 20px 0; border: 1px solid #e5e7eb; } .content { margin-bottom: 40px; font-size: 1.1rem; } .canvas-container { margin: 20px 0; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; background: #fff; text-align: center; } .canvas-container h4 { margin: 0; padding: 10px; background: #f3f4f6; color: #666; font-size: 0.9rem; border-bottom: 1px solid #e5e7eb; } .attachments { margin-top: 40px; padding-top: 20px; border-top: 2px dashed #e5e7eb; } .attachment-item { display: inline-block; background: #f3f4f6; padding: 10px 15px; border-radius: 8px; margin: 5px 10px 5px 0; text-decoration: none; color: #4f46e5; font-weight: bold; font-size: 0.9em; border: 1px solid #e5e7eb; } .attachment-item:hover { background: #e0e7ff; } </style></head><body><div class='paper'><h1>" + docTitle + "</h1><div class='content'>" + content + "</div>" + canvasHtml + attHtml + "</div></body></html>";
     
     const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = (title || '未命名筆記') + '.html';
+    link.download = docTitle + '.html';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1245,6 +1213,3 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
-
-
-```
