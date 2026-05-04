@@ -844,8 +844,8 @@ function FolderTree({ folders, parentId, currentFolderId, onSelect, onDropNote, 
   );
 }
 
+// 🔥 修改 TodoCard：移除分類標籤、直接顯示說明
 function TodoCard({ todo, categories, onToggle, onClick, onDelete, onDragStart, onDragEnd }) {
-  const cat = categories.find(c => c.id === todo.categoryId);
   const [isExpanded, setIsExpanded] = useState(false);
   
   let isOverdue = false; let dueText = '';
@@ -859,17 +859,23 @@ function TodoCard({ todo, categories, onToggle, onClick, onDelete, onDragStart, 
         <button onClick={onToggle} title="標示為完成" className="mt-0.5 flex-shrink-0 text-gray-300 hover:text-green-500 group/btn transition-colors"><Circle size={20} className="block group-hover/btn:hidden" /><CheckCircle2 size={20} className="hidden group-hover/btn:block" /></button>
         <div className="flex-1 min-w-0">
           <h3 className="text-sm md:text-base font-bold text-gray-800 leading-tight">{todo.title}</h3>
+          
+          {/* 🔥 直接顯示任務說明，並限制最多 3 行 */}
+          {todo.description && (
+            <p className="text-xs text-gray-500 mt-1.5 leading-relaxed line-clamp-3">
+              {todo.description}
+            </p>
+          )}
+
           <div className="flex flex-wrap gap-2 mt-2 items-center">
-            {cat && <span className="text-[10px] px-2 py-0.5 rounded bg-gray-50 text-gray-600 border"><Tags size={10}/> {cat.name}</span>}
-            {/* 🔥 如果有任務說明，顯示小圖示 */}
-            {todo.description && <span className="text-gray-400" title="有任務說明"><AlignLeft size={14}/></span>}
-            
+            {/* 移除了分類標籤 */}
             {(todo.progress || []).length > 0 && (
               <button onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }} className="text-[10px] text-gray-500 hover:text-indigo-600 flex items-center gap-1 bg-gray-50 px-2 py-0.5 rounded border transition-colors shadow-sm">
                 <Clock size={10}/> {todo.progress.length} 筆進度 {isExpanded ? <ChevronUp size={12}/> : <ChevronDown size={12}/>}
               </button>
             )}
           </div>
+
           {isExpanded && (todo.progress || []).length > 0 && (
             <div className="mt-3 pl-2 border-l-2 border-indigo-200 space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-1 animate-fade-in" onClick={(e) => e.stopPropagation()}>
                {todo.progress.map(p => (
@@ -896,7 +902,6 @@ function CreateTodoModal({categories, onClose, onSubmit}) {
         <div><label className="block text-sm font-bold mb-1">任務名稱 *</label><input autoFocus required value={f.title} onChange={e=>setF({...f, title:e.target.value})} className="w-full border rounded-xl p-3 outline-none focus:ring-2 focus:ring-indigo-500"/></div>
         <div className="grid grid-cols-2 gap-4"><div><label className="block text-sm font-bold mb-1">死線</label><input type="date" value={f.dueDate} onChange={e=>setF({...f, dueDate:e.target.value})} className="w-full border rounded-xl p-2.5 text-sm outline-none"/></div><div><label className="block text-sm font-bold mb-1">緊急程度</label><select value={f.priority} onChange={e=>setF({...f, priority:e.target.value})} className="w-full border rounded-xl p-2.5 text-sm outline-none"><option value="urgent">🔴 緊急</option><option value="semi">🟡 次緊急</option><option value="normal">🟢 非緊急</option></select></div></div>
         <div><label className="block text-sm font-bold mb-1">分類標籤</label><select value={f.categoryId} onChange={e=>setF({...f, categoryId:e.target.value})} className="w-full border rounded-xl p-2.5 text-sm outline-none"><option value="">無分類</option>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-        {/* 🔥 更改文案為「任務說明」，並且作為獨立欄位 */}
         <div><label className="block text-sm font-bold mb-1">任務說明 (選填)</label><textarea value={f.description} onChange={e=>setF({...f, description:e.target.value})} className="w-full border rounded-xl p-3 text-sm h-20 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="任務的詳細內容或備註..." /></div>
       </div>
       <div className="flex justify-end gap-3 mt-6"><button type="button" onClick={onClose} className="px-5 py-2.5 bg-gray-100 rounded-xl font-bold">取消</button><button type="submit" className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold">建立</button></div>
@@ -904,7 +909,6 @@ function CreateTodoModal({categories, onClose, onSubmit}) {
   );
 }
 
-// 🔥 全新升級的任務詳情面板：支援標題編輯、獨立說明區塊
 function TodoDetailModal({ todo, categories, user, appId, db, onClose, showToast, reqConfirm }) {
   const [nt, setNt] = useState(''); 
   const [editId, setEditId] = useState(null); 
@@ -1048,6 +1052,14 @@ style.textContent = `
   .rich-editor img {
     max-width: 100%; max-height: 400px; border-radius: 8px; margin: 10px 0; object-fit: contain;
     border: 1px solid #e5e7eb; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  }
+  
+  /* 🔥 新增：限制文字行數並顯示省略號 */
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;  
+    overflow: hidden;
   }
 `;
 document.head.appendChild(style);
